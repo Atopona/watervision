@@ -1,15 +1,20 @@
 package me.srrapero720.watervision;
 
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import me.srrapero720.watervision.client.screens.VisionScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import org.joml.Matrix4f;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL30;
 
 import java.net.URI;
 import java.util.Objects;
@@ -46,31 +51,102 @@ public class WaterVisionClient {
         VisionOverlay.uri = null;
     }
 
+    /**
+     * 内部 blit 方法，兼容 Iris/Shaders
+     * 通过保存和恢复 GL 状态确保在光影环境下正常渲染
+     */
     @OnlyIn(Dist.CLIENT)
     public static void internal$blit(final GuiGraphics graphics, final ResourceLocation texture, final float alpha, final int x, final int y, final int offsetX, final int offsetY, final int width, final int height) {
+        // 先 flush 当前的 GuiGraphics 批处理
+        graphics.flush();
+        
         final float pX1 = x;
         final float pX2 = x + width;
         final float pY1 = y;
         final float pY2 = y + height;
         final float pBlitOffset = 0.0f;
-        final var pMinU = offsetX / width;
-        final var pMaxU = (offsetX + width) / width;
-        final var pMinV = offsetY / height;
-        final var pMaxV = (offsetY + height) / height;
+        final var pMinU = (float) offsetX / width;
+        final var pMaxU = (float) (offsetX + width) / width;
+        final var pMinV = (float) offsetY / height;
+        final var pMaxV = (float) (offsetY + height) / height;
 
-        RenderSystem.enableBlend();
-        final int tex = Minecraft.getInstance().getTextureManager().getTexture(texture).getId();
-        RenderSystem.bindTexture(tex);
-        RenderSystem.setShaderTexture(0, tex);
-        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, alpha);
-        RenderSystem.setShader(GameRenderer::getPositionTexShader);
-        final Matrix4f matrix4f = graphics.pose().last().pose();
-        final BufferBuilder bufferbuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        bufferbuilder.addVertex(matrix4f, pX1, pY1, pBlitOffset).setUv(pMinU, pMinV);
-        bufferbuilder.addVertex(matrix4f, pX1, pY2, pBlitOffset).setUv(pMinU, pMaxV);
-        bufferbuilder.addVertex(matrix4f, pX2, pY2, pBlitOffset).setUv(pMaxU, pMaxV);
-        bufferbuilder.addVertex(matrix4f, pX2, pY1, pBlitOffset).setUv(pMaxU, pMinV);
-        BufferUploader.drawWithShader(Objects.requireNonNull(bufferbuilder.build()));
-        RenderSystem.disableBlend();
+        // 保存当前 GL 状态 (Iris/Shaders 兼容)
+        final int previousProgram = GL11.glGetInteger(GL30.GL_CURRENT_PROGRAM);
+        final int previousFramebuffer = GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
+        final boolean wasBlendEnabled = GL11.glIsEnabled(GL11.GL_BLEND);
+        final int previousBlendSrc = GL11.glGetInteger(GL11.GL_BLEND_SRC_ALPHA);
+        final int previousBlendDst = GL11.glGetInteger(GL11.GL_BLEND_DST_ALPHA);
+        final int previousActiveTexture = GL11.glGetInteger(GL30.GL_ACTIVE_TEXTURE);
+        final boolean wasDepthTestEnabled = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
+        
+        try {
+            // 绑定到 Minecraft 主 framebuffer，绕过 Iris 的 framebuffer
+            final RenderTarget mainTarget = Minecraft.getInstance().getMainRenderTarget();
+            if (mainTarget != null) {
+                mainTarget.bindWrite(false);
+            }
+            
+            // 禁用深度测试，确保 GUI 元素总是在最前面
+            RenderSystem.disableDepthTest();
+            
+            // 设置混合模式
+            RenderSystem.enableBlend();
+            RenderSystem.blendFuncSeparate(
+                GlStateManager.SourceFactor.SRC_ALPHA,
+                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
+                GlStateManager.SourceFactor.ONE,
+                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA
+            );
+            
+            // 绑定纹理
+            final int tex = Minecraft.getInstance().getTextureManager().getTexture(texture).getId();
+            RenderSystem.activeTexture(GL30.GL_TEXTURE0);
+            RenderSystem.bindTexture(tex);
+            RenderSystem.setShaderTexture(0, tex);
+            RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, alpha);
+            
+            // 获取并应用 shader
+            final ShaderInstance shader = GameRenderer.getPositionTexShader();
+            if (shader == null) {
+                return;
+            }
+            
+            RenderSystem.setShader(GameRenderer::getPositionTexShader);
+            shader.apply();
+            
+            // 构建顶点数据
+            final Matrix4f matrix4f = graphics.pose().last().pose();
+            final BufferBuilder bufferbuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+            bufferbuilder.addVertex(matrix4f, pX1, pY1, pBlitOffset).setUv(pMinU, pMinV);
+            bufferbuilder.addVertex(matrix4f, pX1, pY2, pBlitOffset).setUv(pMinU, pMaxV);
+            bufferbuilder.addVertex(matrix4f, pX2, pY2, pBlitOffset).setUv(pMaxU, pMaxV);
+            bufferbuilder.addVertex(matrix4f, pX2, pY1, pBlitOffset).setUv(pMaxU, pMinV);
+            
+            // 绘制
+            BufferUploader.drawWithShader(Objects.requireNonNull(bufferbuilder.build()));
+            
+            // 清理 shader
+            shader.clear();
+            
+        } finally {
+            // 恢复 GL 状态 (Iris/Shaders 兼容)
+            GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebuffer);
+            GL30.glUseProgram(previousProgram);
+            RenderSystem.activeTexture(previousActiveTexture);
+            
+            if (wasDepthTestEnabled) {
+                RenderSystem.enableDepthTest();
+            }
+            
+            if (wasBlendEnabled) {
+                RenderSystem.enableBlend();
+                GlStateManager._blendFuncSeparate(previousBlendSrc, previousBlendDst, previousBlendSrc, previousBlendDst);
+            } else {
+                RenderSystem.disableBlend();
+            }
+            
+            // 重置 shader 颜色
+            RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
+        }
     }
 }

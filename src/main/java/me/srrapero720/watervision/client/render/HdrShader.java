@@ -13,6 +13,7 @@ import java.io.IOException;
 /**
  * HDR 色调映射 Shader 管理器
  * 支持 PQ (HDR10) 和 HLG 两种 HDR 传递函数到 SDR 的转换
+ * 兼容 Iris/Oculus 光影模组
  */
 @OnlyIn(Dist.CLIENT)
 public class HdrShader {
@@ -50,7 +51,7 @@ public class HdrShader {
      */
     public static void setMode(float mode) {
         currentMode = mode;
-        if (hdrTonemapShader != null) {
+        if (hdrTonemapShader != null && !ShaderCompat.areShadersActive()) {
             var uniform = hdrTonemapShader.getUniform("HdrMode");
             if (uniform != null) {
                 uniform.set(mode);
@@ -67,8 +68,23 @@ public class HdrShader {
     
     /**
      * 检查 shader 是否可用
+     * 当 Iris/Oculus 光影启用时，返回 false 以使用兼容的渲染路径
      */
     public static boolean isAvailable() {
+        if (hdrTonemapShader == null) {
+            return false;
+        }
+        // 当光影启用时，禁用自定义 HDR shader 以避免冲突
+        if (ShaderCompat.areShadersActive()) {
+            return false;
+        }
+        return true;
+    }
+    
+    /**
+     * 检查 shader 是否已注册（不考虑光影状态）
+     */
+    public static boolean isRegistered() {
         return hdrTonemapShader != null;
     }
     
