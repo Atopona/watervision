@@ -30,19 +30,7 @@ jobs:
           distribution: 'temurin'
       - name: Run chmod to make gradlew executable
         run: chmod +x ./gradlew
-      - name: Generate IntelliJ runs
-        uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
-        with:
-          arguments: genIntellijRuns --parallel
-      - name: Generate Eclipse runs
-        uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
-        with:
-          arguments: genEclipseRuns --parallel
-      - name: Generate Eclipse runs
-        uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
-        with:
-          arguments: genVSCodeRuns --parallel
-      - name: Build Gradle
+      - name: Build with Gradle
         uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
         with:
           arguments: build --parallel
