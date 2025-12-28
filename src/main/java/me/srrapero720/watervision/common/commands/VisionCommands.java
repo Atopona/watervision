@@ -107,6 +107,23 @@ public class VisionCommands {
                 .requires(source -> source.getEntity() != null)
                 .executes(VisionCommands::closeVideoOverlayClient)
         );
+        
+        // 配置命令
+        dispatcher.register(Commands.literal("watervision")
+                .then(Commands.literal("config")
+                        .executes(VisionCommands::openConfigScreen)
+                )
+        );
+    }
+    
+    @OnlyIn(Dist.CLIENT)
+    private static int openConfigScreen(CommandContext<CommandSourceStack> context) {
+        net.minecraft.client.Minecraft.getInstance().tell(() -> {
+            net.minecraft.client.Minecraft.getInstance().setScreen(
+                new me.srrapero720.watervision.client.screens.VisionConfigScreen(null)
+            );
+        });
+        return 0;
     }
 
     @OnlyIn(Dist.CLIENT)

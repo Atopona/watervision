@@ -1,11 +1,8 @@
 package me.srrapero720.watervision.client.render;
 
-import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import me.srrapero720.watervision.VisionConfig;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -14,8 +11,6 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL14;
-import org.lwjgl.opengl.GL30;
 
 import java.util.Objects;
 
@@ -48,11 +43,6 @@ public class HdrRenderer {
      * 检查是否应该使用 HDR 色调映射
      */
     private static boolean shouldUseHdrTonemap(int hdrMode) {
-        // 检查配置是否启用 HDR to SDR
-        if (!VisionConfig.isHdrToSdrEnabled()) {
-            return false;
-        }
-        
         // SDR 内容不需要色调映射
         if (hdrMode == HdrMode.SDR) {
             return false;
@@ -63,9 +53,19 @@ public class HdrRenderer {
             return false;
         }
         
-        // 检查光影环境下的设置
-        if (ShaderCompat.areShadersActive() && !VisionConfig.forceHdrInShaders()) {
+        // 当光影启用时，不使用自定义 HDR shader（避免冲突）
+        if (ShaderCompat.areShadersActive()) {
             return false;
+        }
+        
+        // 检查配置
+        try {
+            // 检查配置是否启用 HDR to SDR
+            if (!VisionConfig.isHdrToSdrEnabled()) {
+                return false;
+            }
+        } catch (Exception e) {
+            // 配置未加载时，默认启用 HDR
         }
         
         return true;
@@ -73,7 +73,7 @@ public class HdrRenderer {
     
     /**
      * 渲染带 HDR 色调映射的纹理
-     * 兼容 Iris/Shaders - 通过直接绑定到主 framebuffer 并保存/恢复 GL 状态
+     * 兼容 Iris/Oculus 光影模组
      * 
      * @param graphics GuiGraphics 实例
      * @param texture 纹理资源位置
@@ -88,7 +88,7 @@ public class HdrRenderer {
      */
     public static void blitWithHdr(GuiGraphics graphics, ResourceLocation texture, float alpha,
                                     int x, int y, int offsetX, int offsetY, int width, int height, int hdrMode) {
-        // 先 flush 当前的 GuiGraphics 批处理，确保之前的渲染完成
+        // 先刷新之前的渲染
         graphics.flush();
         
         final float pX1 = x;
@@ -96,97 +96,55 @@ public class HdrRenderer {
         final float pY1 = y;
         final float pY2 = y + height;
         final float pBlitOffset = 0.0f;
-        final var pMinU = (float) offsetX / width;
-        final var pMaxU = (float) (offsetX + width) / width;
-        final var pMinV = (float) offsetY / height;
-        final var pMaxV = (float) (offsetY + height) / height;
+        final float pMinU = 0.0f;
+        final float pMaxU = 1.0f;
+        final float pMinV = 0.0f;
+        final float pMaxV = 1.0f;
 
-        // 保存当前 GL 状态 (Iris/Shaders 兼容)
-        final int previousProgram = GL11.glGetInteger(GL30.GL_CURRENT_PROGRAM);
-        final int previousFramebuffer = GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
+        // 保存当前 GL 状态
         final boolean wasBlendEnabled = GL11.glIsEnabled(GL11.GL_BLEND);
-        final int previousBlendSrc = GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA);
-        final int previousBlendDst = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA);
-        final int previousActiveTexture = GL11.glGetInteger(GL30.GL_ACTIVE_TEXTURE);
         final boolean wasDepthTestEnabled = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
         
-        try {
-            // 绑定到 Minecraft 主 framebuffer，绕过 Iris 的 framebuffer
-            final RenderTarget mainTarget = Minecraft.getInstance().getMainRenderTarget();
-            if (mainTarget != null) {
-                mainTarget.bindWrite(false);
-            }
-            
-            // 禁用深度测试，确保 GUI 元素总是在最前面
-            RenderSystem.disableDepthTest();
-            
-            // 设置混合模式
-            RenderSystem.enableBlend();
-            RenderSystem.blendFuncSeparate(
-                GlStateManager.SourceFactor.SRC_ALPHA,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
-                GlStateManager.SourceFactor.ONE,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA
-            );
-            
-            // 绑定纹理
-            final int tex = Minecraft.getInstance().getTextureManager().getTexture(texture).getId();
-            RenderSystem.activeTexture(GL30.GL_TEXTURE0);
-            RenderSystem.bindTexture(tex);
-            RenderSystem.setShaderTexture(0, tex);
-            RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, alpha);
-            
-            // 根据配置选择 shader
-            ShaderInstance shaderToUse;
-            if (shouldUseHdrTonemap(hdrMode)) {
-                shaderToUse = HdrShader.getShader();
+        // 设置渲染状态
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableDepthTest();
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, alpha);
+        RenderSystem.setShaderTexture(0, texture);
+        
+        // 根据配置选择 shader
+        boolean useHdrShader = shouldUseHdrTonemap(hdrMode);
+        if (useHdrShader) {
+            ShaderInstance hdrShader = HdrShader.getShader();
+            if (hdrShader != null) {
                 HdrShader.setMode(hdrMode);
+                RenderSystem.setShader(() -> hdrShader);
             } else {
-                shaderToUse = GameRenderer.getPositionTexShader();
+                RenderSystem.setShader(GameRenderer::getPositionTexShader);
             }
-            
-            if (shaderToUse == null) {
-                return;
-            }
-            
-            RenderSystem.setShader(() -> shaderToUse);
-            
-            // 应用 shader 并设置 uniforms
-            shaderToUse.apply();
-            
-            // 构建顶点数据
-            final Matrix4f matrix4f = graphics.pose().last().pose();
-            final BufferBuilder bufferbuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-            bufferbuilder.addVertex(matrix4f, pX1, pY1, pBlitOffset).setUv(pMinU, pMinV);
-            bufferbuilder.addVertex(matrix4f, pX1, pY2, pBlitOffset).setUv(pMinU, pMaxV);
-            bufferbuilder.addVertex(matrix4f, pX2, pY2, pBlitOffset).setUv(pMaxU, pMaxV);
-            bufferbuilder.addVertex(matrix4f, pX2, pY1, pBlitOffset).setUv(pMaxU, pMinV);
-            
-            // 绘制
-            BufferUploader.drawWithShader(Objects.requireNonNull(bufferbuilder.build()));
-            
-            // 清理 shader
-            shaderToUse.clear();
-            
-        } finally {
-            // 恢复 GL 状态 (Iris/Shaders 兼容)
-            GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebuffer);
-            GL30.glUseProgram(previousProgram);
-            RenderSystem.activeTexture(previousActiveTexture);
-            
-            if (wasDepthTestEnabled) {
-                RenderSystem.enableDepthTest();
-            }
-            
-            if (wasBlendEnabled) {
-                RenderSystem.enableBlend();
-                GlStateManager._blendFuncSeparate(previousBlendSrc, previousBlendDst, previousBlendSrc, previousBlendDst);
-            } else {
-                RenderSystem.disableBlend();
-            }
-            
-            // 重置 shader 颜色
-            RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
+        } else {
+            RenderSystem.setShader(GameRenderer::getPositionTexShader);
+        }
+        
+        final Matrix4f matrix4f = graphics.pose().last().pose();
+        final BufferBuilder bufferbuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+        bufferbuilder.addVertex(matrix4f, pX1, pY1, pBlitOffset).setUv(pMinU, pMinV);
+        bufferbuilder.addVertex(matrix4f, pX1, pY2, pBlitOffset).setUv(pMinU, pMaxV);
+        bufferbuilder.addVertex(matrix4f, pX2, pY2, pBlitOffset).setUv(pMaxU, pMaxV);
+        bufferbuilder.addVertex(matrix4f, pX2, pY1, pBlitOffset).setUv(pMaxU, pMinV);
+        
+        MeshData meshData = bufferbuilder.build();
+        if (meshData != null) {
+            BufferUploader.drawWithShader(meshData);
+        }
+        
+        // 恢复 GL 状态
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
+        if (!wasBlendEnabled) {
+            RenderSystem.disableBlend();
+        }
+        if (wasDepthTestEnabled) {
+            RenderSystem.enableDepthTest();
         }
     }
     
