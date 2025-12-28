@@ -51,7 +51,7 @@ public class HdrShader {
      */
     public static void setMode(float mode) {
         currentMode = mode;
-        if (hdrTonemapShader != null && !ShaderCompat.areShadersActive()) {
+        if (hdrTonemapShader != null) {
             var uniform = hdrTonemapShader.getUniform("HdrMode");
             if (uniform != null) {
                 uniform.set(mode);

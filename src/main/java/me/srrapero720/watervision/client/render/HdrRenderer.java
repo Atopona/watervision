@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
+import me.srrapero720.watervision.VisionConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
@@ -44,6 +45,33 @@ public class HdrRenderer {
     }
     
     /**
+     * 检查是否应该使用 HDR 色调映射
+     */
+    private static boolean shouldUseHdrTonemap(int hdrMode) {
+        // 检查配置是否启用 HDR to SDR
+        if (!VisionConfig.isHdrToSdrEnabled()) {
+            return false;
+        }
+        
+        // SDR 内容不需要色调映射
+        if (hdrMode == HdrMode.SDR) {
+            return false;
+        }
+        
+        // 检查 shader 是否已注册
+        if (!HdrShader.isRegistered()) {
+            return false;
+        }
+        
+        // 检查光影环境下的设置
+        if (ShaderCompat.areShadersActive() && !VisionConfig.forceHdrInShaders()) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /**
      * 渲染带 HDR 色调映射的纹理
      * 兼容 Iris/Shaders - 通过直接绑定到主 framebuffer 并保存/恢复 GL 状态
      * 
@@ -73,9 +101,6 @@ public class HdrRenderer {
         final var pMinV = (float) offsetY / height;
         final var pMaxV = (float) (offsetY + height) / height;
 
-        // 检测是否在光影环境下
-        final boolean shadersActive = ShaderCompat.areShadersActive();
-        
         // 保存当前 GL 状态 (Iris/Shaders 兼容)
         final int previousProgram = GL11.glGetInteger(GL30.GL_CURRENT_PROGRAM);
         final int previousFramebuffer = GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
@@ -111,9 +136,9 @@ public class HdrRenderer {
             RenderSystem.setShaderTexture(0, tex);
             RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, alpha);
             
-            // 选择 shader - 光影环境下使用标准 shader
+            // 根据配置选择 shader
             ShaderInstance shaderToUse;
-            if (!shadersActive && hdrMode != HdrMode.SDR && HdrShader.isAvailable()) {
+            if (shouldUseHdrTonemap(hdrMode)) {
                 shaderToUse = HdrShader.getShader();
                 HdrShader.setMode(hdrMode);
             } else {

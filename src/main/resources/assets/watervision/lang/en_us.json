@@ -1,0 +1,11 @@
+{
+  "watervision.config.title": "WaterVision Settings",
+  
+  "watervision.config.hdr": "HDR Settings",
+  "watervision.config.hdr.enableHdrToSdr": "Enable HDR to SDR",
+  "watervision.config.hdr.enableHdrToSdr.tooltip": "Enable HDR to SDR tone mapping for HDR video content. Disable if you experience visual issues.",
+  "watervision.config.hdr.tonemapMode": "Tonemap Mode",
+  "watervision.config.hdr.tonemapMode.tooltip": "HDR tone mapping algorithm to use.",
+  "watervision.config.hdr.forceHdrInShaders": "Force HDR with Shaders",
+  "watervision.config.hdr.forceHdrInShaders.tooltip": "Force HDR tone mapping even when shader mods (Iris/Oculus) are active."
+}

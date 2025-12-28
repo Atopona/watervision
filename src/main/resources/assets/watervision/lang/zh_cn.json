@@ -1,0 +1,11 @@
+{
+  "watervision.config.title": "WaterVision 设置",
+  
+  "watervision.config.hdr": "HDR 设置",
+  "watervision.config.hdr.enableHdrToSdr": "启用 HDR 转 SDR",
+  "watervision.config.hdr.enableHdrToSdr.tooltip": "为 HDR 视频内容启用 HDR 到 SDR 色调映射。如果遇到视觉问题请禁用。",
+  "watervision.config.hdr.tonemapMode": "色调映射模式",
+  "watervision.config.hdr.tonemapMode.tooltip": "使用的 HDR 色调映射算法。",
+  "watervision.config.hdr.forceHdrInShaders": "光影下强制 HDR",
+  "watervision.config.hdr.forceHdrInShaders.tooltip": "即使启用了光影模组 (Iris/Oculus) 也强制进行 HDR 色调映射。"
+}

@@ -31,8 +31,9 @@ public class WaterVision {
     public static final ResourceLocation LOADING_ANIM_TEXTURE = ResourceLocation.tryBuild(ID, "loading_animation");
     private static int ticks = 0;
 
-    public WaterVision() {
-
+    public WaterVision(net.neoforged.bus.api.IEventBus bus, net.neoforged.fml.ModContainer container) {
+        // 注册配置
+        VisionConfig.init(bus, container);
     }
 
     @EventBusSubscriber
