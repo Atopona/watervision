@@ -31,7 +31,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: waterframes-jars
+          name: watervision-jars
           path: |
             build/libs/*.jar
             builtJars/*.jar
