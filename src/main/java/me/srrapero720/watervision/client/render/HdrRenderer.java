@@ -10,7 +10,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import org.joml.Matrix4f;
-import org.watermedia.api.player.videolan.VideoPlayer;
 
 import java.util.Objects;
 
@@ -26,16 +25,15 @@ public class HdrRenderer {
      * 
      * @param graphics GuiGraphics 实例
      * @param texture 纹理资源位置
-     * @param player VideoPlayer 实例（用于获取 HDR 模式）
+     * @param hdrMode HDR 模式
      * @param alpha 透明度
      * @param x X 坐标
      * @param y Y 坐标
      * @param width 宽度
      * @param height 高度
      */
-    public static void blitVideo(GuiGraphics graphics, ResourceLocation texture, VideoPlayer player, 
+    public static void blitVideo(GuiGraphics graphics, ResourceLocation texture, int hdrMode,
                                   float alpha, int x, int y, int width, int height) {
-        int hdrMode = player != null ? player.getHdrMode() : VideoPlayer.HDR_MODE_SDR;
         blitWithHdr(graphics, texture, alpha, x, y, 0, 0, width, height, hdrMode);
     }
     
@@ -72,14 +70,10 @@ public class HdrRenderer {
         RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, alpha);
         
         // 选择 shader
-        ShaderInstance shader = null;
-        if (hdrMode != VideoPlayer.HDR_MODE_SDR && HdrShader.isAvailable()) {
-            shader = HdrShader.getShader();
+        if (hdrMode != HdrMode.SDR && HdrShader.isAvailable()) {
+            final ShaderInstance hdrShader = HdrShader.getShader();
             HdrShader.setMode(hdrMode);
-        }
-        
-        if (shader != null) {
-            RenderSystem.setShader(() -> shader);
+            RenderSystem.setShader(() -> hdrShader);
         } else {
             RenderSystem.setShader(GameRenderer::getPositionTexShader);
         }
@@ -99,6 +93,6 @@ public class HdrRenderer {
      */
     public static void blitSdr(GuiGraphics graphics, ResourceLocation texture, float alpha,
                                 int x, int y, int offsetX, int offsetY, int width, int height) {
-        blitWithHdr(graphics, texture, alpha, x, y, offsetX, offsetY, width, height, VideoPlayer.HDR_MODE_SDR);
+        blitWithHdr(graphics, texture, alpha, x, y, offsetX, offsetY, width, height, HdrMode.SDR);
     }
 }
