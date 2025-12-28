@@ -2,6 +2,7 @@ package me.srrapero720.watervision.client.screens;
 
 import me.srrapero720.watervision.WaterVision;
 import me.srrapero720.watervision.WaterVisionClient;
+import me.srrapero720.watervision.client.render.HdrRenderer;
 import me.srrapero720.watervision.client.render.TextureWrapper;
 import me.srrapero720.watervision.client.screens.widgets.FadeBackground;
 import net.minecraft.client.Minecraft;
@@ -67,10 +68,10 @@ public class VisionScreen extends Screen {
         if (this.status == Status.OPENING_VIDEO || this.status == Status.CLOSING_VIDEO) {
             this.videoPlayer.preRender();
             if (this.stretch) {
-                WaterVisionClient.internal$blit(guiGraphics, TEXTURE, 1, 0, 0, 0, 0, this.width, this.height);
+                HdrRenderer.blitVideo(guiGraphics, TEXTURE, this.videoPlayer, 1, 0, 0, this.width, this.height);
             } else {
                 final AspectRatioDimension dim = this.render$getAspectRatio(this.width, this.height, this.videoPlayer.width(), this.videoPlayer.height());
-                WaterVisionClient.internal$blit(guiGraphics, TEXTURE, 1, dim.x, dim.y, 0, 0, dim.width, dim.height);
+                HdrRenderer.blitVideo(guiGraphics, TEXTURE, this.videoPlayer, 1, dim.x, dim.y, dim.width, dim.height);
             }
         }
 
@@ -90,6 +91,12 @@ public class VisionScreen extends Screen {
             guiGraphics.drawString(this.font, String.format("Media Duration: %s (%s)", FORMAT.format(new Date(this.videoPlayer.getMediaInfoDuration())), this.videoPlayer.getMediaInfoDuration()), 0, (this.height / 2) + 12, 0xFFFFFF);
             guiGraphics.drawString(this.font, String.format("Orchestrator Status: %s", this.status.name()), 0, (this.height / 2) + 24, 0xFFFFFF);
             guiGraphics.drawString(this.font, String.format("Video Size: %sx%s", this.videoPlayer.width(), this.videoPlayer.height()), 0, (this.height / 2) + 36, 0xFFFFFF);
+            String hdrModeName = switch (this.videoPlayer.getHdrMode()) {
+                case VideoPlayer.HDR_MODE_PQ -> "HDR10 (PQ)";
+                case VideoPlayer.HDR_MODE_HLG -> "HLG";
+                default -> "SDR";
+            };
+            guiGraphics.drawString(this.font, String.format("HDR Mode: %s", hdrModeName), 0, (this.height / 2) + 48, 0xFFFFFF);
         }
     }
 

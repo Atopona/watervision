@@ -1,5 +1,6 @@
 package me.srrapero720.watervision;
 
+import me.srrapero720.watervision.client.render.HdrShader;
 import me.srrapero720.watervision.client.render.TextureWrapper;
 import me.srrapero720.watervision.common.commands.VisionCommands;
 import net.minecraft.client.Minecraft;
@@ -12,12 +13,15 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
+import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.watermedia.api.image.ImageAPI;
+
+import java.io.IOException;
 
 @Mod(WaterVision.ID)
 public class WaterVision {
@@ -49,6 +53,19 @@ public class WaterVision {
             ticks++;
         }
     }
+    @EventBusSubscriber(value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
+    public static class ClientModEvents {
+        @SubscribeEvent
+        public static void onRegisterShaders(final RegisterShadersEvent event) {
+            try {
+                HdrShader.register(event.getResourceProvider());
+                LOGGER.info(IT, "HDR tonemap shader registered successfully");
+            } catch (IOException e) {
+                LOGGER.error(IT, "Failed to register HDR tonemap shader", e);
+            }
+        }
+    }
+    
     @EventBusSubscriber(value = Dist.CLIENT)
     public static class ClientRegistryEvents {
         @SubscribeEvent
