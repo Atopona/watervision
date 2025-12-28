@@ -75,7 +75,8 @@ dependencies {
     implementation "net.neoforged:neoforge:$forgeversion"
 
     // DEPENDENCIES
-    implementation "com.github.WaterMediaTeam:watermedia:$watermediaversion"
+    // 使用 Atopona 的 fork (包含 HDR 支持)
+    implementation "com.github.Atopona:watermedia:$watermediaversion"
 }
 
 tasks.processResources.outputs.upToDateWhen { false }
