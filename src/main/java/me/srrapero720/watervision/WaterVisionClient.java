@@ -14,6 +14,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL30;
 
 import java.net.URI;
@@ -74,8 +75,8 @@ public class WaterVisionClient {
         final int previousProgram = GL11.glGetInteger(GL30.GL_CURRENT_PROGRAM);
         final int previousFramebuffer = GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
         final boolean wasBlendEnabled = GL11.glIsEnabled(GL11.GL_BLEND);
-        final int previousBlendSrc = GL11.glGetInteger(GL11.GL_BLEND_SRC_ALPHA);
-        final int previousBlendDst = GL11.glGetInteger(GL11.GL_BLEND_DST_ALPHA);
+        final int previousBlendSrc = GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA);
+        final int previousBlendDst = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA);
         final int previousActiveTexture = GL11.glGetInteger(GL30.GL_ACTIVE_TEXTURE);
         final boolean wasDepthTestEnabled = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
         
